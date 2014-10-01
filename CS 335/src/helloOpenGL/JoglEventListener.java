@@ -1,6 +1,6 @@
 package helloOpenGL;
 
-
+//Homework #2
 
 
 
@@ -122,11 +122,17 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 	 */
 	int windowWidth, windowHeight;
 	float orthoX=40;
-	float tVal_x, tVal_y, rVal_x, rVal_y, rVal;
+	float tVal_x, tVal_y, rVal_x, rVal_y, rVal = 0;
+	float sVal = 1;
+	float sMin = 0.01f;
+	float sMax = 100;
 	double rtMat[] = new double[16];
+	int iX0, iY0;
 	float mouseX0, mouseY0;
+	//float XX, YY;
 	int saveRTnow=0, mouseDragButton=0;
 	char operation = 't';
+	boolean clicked = false;
 	
 
     	private GLU glu = new GLU();
@@ -186,26 +192,145 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 			//if (backrgb[0]> 1) backrgb[0] = 0; 
 
 			
+	        if(operation == 't'){
+				gl.glBegin(GL.GL_TRIANGLES);        // Drawing Using Triangles
+	        	for(int i=0; i<44; i++) {
+	        		gl.glColor3f(0.7f, 0.7f, 0.7f);
+	        		gl.glVertex3f(vertices[(indices[i*4+1])*3] + tVal_x,
+	        					  vertices[(indices[i*4+1])*3+1] + tVal_y,
+	        					  vertices[(indices[i*4+1])*3+2]);
+	        		gl.glVertex3f(vertices[(indices[i*4+2])*3] + tVal_x,
+	  					  		  vertices[(indices[i*4+2])*3+1] + tVal_y,
+	  					  		  vertices[(indices[i*4+2])*3+2]);
+	        		gl.glVertex3f(vertices[(indices[i*4+3])*3] + tVal_x,
+	  					  		  vertices[(indices[i*4+3])*3+1] + tVal_y,
+	  					  		  vertices[(indices[i*4+3])*3+2]);
+	        	}
+		        gl.glEnd();                         // Finished Drawing The Triangle
+	        }
+	        if(operation == 's'){
+	        	if(clicked){
+	        		//Draw a red circle around the first point clicked before dragging the mouse
+	        		//to scale the UK symbol
+		        	gl.glBegin(GL2.GL_LINE_LOOP);
+		        	gl.glColor3f(1, 0, 0);
+	        		for(int j = 0; j < 360; j++){
+	        			double x = 0.25*Math.cos(j/180.0*Math.PI) + mouseX0;
+	        			double y = 0.25*Math.sin(j/180.0*Math.PI) + mouseY0;
+	        			gl.glVertex3d(x, y, 0);
+	        		}
+		        	gl.glEnd();
+	        	}
+	        	
+				gl.glBegin(GL.GL_TRIANGLES);        // Drawing Using Triangles
+	        	for(int i=0; i<44; i++) {
+	        		gl.glColor3f(0.7f, 0.7f, 0.7f);
+	        		gl.glVertex3f((vertices[(indices[i*4+1])*3] + tVal_x)*sVal - tVal_x,
+	        					  (vertices[(indices[i*4+1])*3+1] + tVal_y)*sVal - tVal_y,
+	        					  vertices[(indices[i*4+1])*3+2]);
+	        		gl.glVertex3f((vertices[(indices[i*4+2])*3] + tVal_x)*sVal - tVal_x,
+	  					  		  (vertices[(indices[i*4+2])*3+1] + tVal_y)*sVal - tVal_y,
+	  					  		  vertices[(indices[i*4+2])*3+2]);
+	        		gl.glVertex3f((vertices[(indices[i*4+3])*3] + tVal_x)*sVal - tVal_x,
+	  					  		  (vertices[(indices[i*4+3])*3+1] + tVal_y)*sVal - tVal_y,
+	  					  		  vertices[(indices[i*4+3])*3+2]);
+	        	}
+		        gl.glEnd();                         // Finished Drawing The Triangle
+	        }
+	        if(operation == 'r'){
+	        	//Draw a red circle around the pivot point of rotation
+	        	gl.glBegin(GL2.GL_LINE_LOOP);
+	        	gl.glColor3f(1, 0, 0);
+        		for(int j = 0; j < 360; j++){
+        			double x = 0.25*Math.cos(j/180.0*Math.PI) + mouseX0;
+        			double y = 0.25*Math.sin(j/180.0*Math.PI) + mouseY0;
+        			gl.glVertex3d(x, y, 0);
+        		}
+	        	gl.glEnd();
+	        	
+	        	
+	        	float temp_x;
+				float temp_y;
+				float temp_z;
+				double theta;	//new angle  to add
+				double phi; 	//original angle
+				double r;		//radius
+				
+				gl.glBegin(GL.GL_TRIANGLES);        // Drawing Using Triangles
+	        	for(int i=0; i<44; i++) {
+	        		gl.glColor3f(0.7f, 0.7f, 0.7f);
+	        		//Gets the original x, y, z values
+	        		temp_x = vertices[(indices[i*4+1])*3];
+	        		temp_y = vertices[(indices[i*4+1])*3+1];
+	        		temp_z = vertices[(indices[i*4+1])*3+2];
+	        		//Original angle
+	        		//phi = Math.atan2(temp_y, temp_x);
+	        		//r value in polar coordinates
+	        		//r = Math.sqrt(temp_y*temp_y + temp_x*temp_x);
+	        		theta = (rVal);		//This just feels like a reasonable rotation rate
+	        		//Translate so the point of rotation is at the origin, rotate, translate back
+	        		temp_x = temp_x + tVal_x;
+	        		temp_y = temp_y + tVal_y;
+	        		r = Math.sqrt(temp_y*temp_y + temp_x*temp_x);
+	        		phi = Math.atan2(temp_y,  temp_x);
+	        		temp_x = (float)(r*Math.cos(phi+theta));
+	        		temp_y = (float)(r*Math.sin(phi+theta));
+	        		temp_x = temp_x - tVal_x;
+	        		temp_y = temp_y - tVal_y;
+	        		//Actually setting the vertex
+	        		gl.glVertex3f(temp_x,
+	        					  temp_y,
+	        					  temp_z);
+	        		
+	        		//Second
+	        		temp_x = vertices[(indices[i*4+2])*3];
+	        		temp_y = vertices[(indices[i*4+2])*3+1];
+	        		temp_z = vertices[(indices[i*4+2])*3+2];
+	        		//phi = Math.atan2(temp_y, temp_x);
+	        		//r = Math.sqrt(temp_y*temp_y + temp_x*temp_x);
+	        		theta = (rVal);
+	        		//Translate so the point of rotation is at the origin, rotate, translate back
+	        		temp_x = temp_x + tVal_x;
+	        		temp_y = temp_y + tVal_y;
+	        		r = Math.sqrt(temp_y*temp_y + temp_x*temp_x);
+	        		phi = Math.atan2(temp_y,  temp_x);
+	        		temp_x = (float)(r*Math.cos(phi+theta));
+	        		temp_y = (float)(r*Math.sin(phi+theta));
+	        		temp_x = temp_x - tVal_x;
+	        		temp_y = temp_y - tVal_y;
+	        		//Actually setting the vertex
+	        		gl.glVertex3f(temp_x,
+      					  		  temp_y,
+	  					  		  temp_z);
+	        		
+	        		//Third
+	        		temp_x = vertices[(indices[i*4+3])*3];
+			  		temp_y = vertices[(indices[i*4+3])*3+1];
+			  		temp_z = vertices[(indices[i*4+3])*3+2];
+			  		//phi = Math.atan2(temp_y, temp_x);
+	        		//r = Math.sqrt(temp_y*temp_y + temp_x*temp_x);
+	        		theta = (rVal);
+	        		//Translate so the point of rotation is at the origin, rotate, translate back
+	        		temp_x = temp_x + tVal_x;
+	        		temp_y = temp_y + tVal_y;
+	        		r = Math.sqrt(temp_y*temp_y + temp_x*temp_x);
+	        		phi = Math.atan2(temp_y,  temp_x);
+	        		temp_x = (float)(r*Math.cos(phi+theta));
+	        		temp_y = (float)(r*Math.sin(phi+theta));
+	        		temp_x = temp_x - tVal_x;
+	        		temp_y = temp_y - tVal_y;
+	        		//Actually setting the vertex
+	        		gl.glVertex3f(temp_x,
+      					  		  temp_y,
+	        					  temp_z);
+	        	}
+		        gl.glEnd();                         // Finished Drawing The Triangle
+	        }
 	        
-			gl.glBegin(GL.GL_TRIANGLES);        // Drawing Using Triangles
-        	for(int i=0; i<44; i++) {
-        		gl.glColor3f(0.7f, 0.7f, 0.7f);
-        		gl.glVertex3f(vertices[(indices[i*4+1])*3],
-        					  vertices[(indices[i*4+1])*3+1],
-        					  vertices[(indices[i*4+1])*3+2]);
-        		gl.glVertex3f(vertices[(indices[i*4+2])*3],
-  					  		  vertices[(indices[i*4+2])*3+1],
-  					  		  vertices[(indices[i*4+2])*3+2]);
-        		gl.glVertex3f(vertices[(indices[i*4+3])*3],
-  					  		  vertices[(indices[i*4+3])*3+1],
-  					  		  vertices[(indices[i*4+3])*3+2]);
-        	}
-	        gl.glEnd();                         // Finished Drawing The Triangle
 		}
 
 		@Override
 		public void dispose(GLAutoDrawable arg0) {
-			// TODO Auto-generated method stub
 			
 		}
 
@@ -216,61 +341,9 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 			System.out.printf("Key typed: %c\n", key);
 			if(key == 's' || key == 't' || key == 'r' ) operation = key;
 			if(key == '0'){
-				float[] std_vertices={5.97994f, -0.085086f, -0.010798f, 
-						5.97994f, 10.0043f, -0.010798f, 
-						7.99077f, 10.0043f, -0.010798f, 
-						7.99077f, 11.3449f, -0.010798f, 
-						-0.405339f, 11.3449f, -0.010798f, 
-						-0.405339f, 9.98083f, -0.010798f, 
-						1.65252f, 9.98083f, -0.010798f, 
-						1.65252f, 0.549879f, -0.010798f, 
-						-0.722839f, 0.549879f, -0.010798f, 
-						-0.722839f, -1.69612f, -0.010798f, 
-						2.6168f, -1.69612f, -0.010798f, 
-						-7.24925f, 0.42055f, -0.010798f, 
-						-9.35415f, 0.42055f, -0.010798f, 
-						-9.35415f, 10.0043f, -0.010798f, 
-						-7.37859f, 10.0043f, -0.010798f, 
-						-7.37859f, 11.3802f, -0.010798f, 
-						-15.8217f, 11.3802f, -0.010798f, 
-						-15.8217f, 9.99258f, -0.010798f, 
-						-13.8109f, 9.99258f, -0.010798f, 
-						-13.8109f, -0.061591f, -0.010798f, 
-						-10.2361f, -1.73139f, -0.010798f, 
-						-7.26099f, -1.73139f, -0.010798f, 
-						-6.1909f, 0.855631f, -0.010798f, 
-						-8.11942f, 0.855631f, -0.010798f, 
-						-8.11942f, 2.31379f, -0.010798f, 
-						0.217914f, 2.31379f, -0.010798f, 
-						0.217914f, 0.926204f, -0.010798f, 
-						-1.73415f, 0.926204f, -0.010798f, 
-						-1.73415f, -4.10675f, -0.010798f, 
-						9.23724f, 0.937952f, -0.010798f, 
-						7.26169f, 0.937952f, -0.010798f, 
-						7.26169f, 2.38434f, -0.010798f, 
-						15.6696f, 2.38434f, -0.010798f, 
-						15.6696f, 1.00851f, -0.010798f, 
-						14.964f, 1.00851f, -0.010798f, 
-						7.75558f, -2.44873f, -0.010798f, 
-						14.4231f, -9.36318f, -0.010798f, 
-						16.0576f, -9.36318f, -0.010798f, 
-						16.0576f, -10.6685f, -0.010798f, 
-						7.62625f, -10.6685f, -0.010798f, 
-						7.62625f, -9.33965f, -0.010798f, 
-						9.67236f, -9.33965f, -0.010798f, 
-						4.49827f, -3.90687f, -0.010798f, 
-						-1.35784f, -6.59973f, -0.010798f, 
-						-1.35784f, -9.3279f, -0.010798f, 
-						0.217914f, -9.3279f, -0.010798f, 
-						0.217914f, -10.6919f, -0.010798f, 
-						-8.22526f, -10.6919f, -0.010798f, 
-						-8.22526f, -9.32786f, -0.010798f, 
-						-6.20266f, -9.32786f, -0.010798f};
-				
-				for(int i= 0; i < std_vertices.length; i++){
-					vertices[i] = std_vertices[i];
-					
-				}
+				tVal_x = 0;
+				tVal_y = 0;
+				rVal = 0;
 			}
 			
 			
@@ -290,48 +363,55 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 
 		@Override
 		public void mouseDragged(MouseEvent e) {
-			
+			// TODO
 			float XX = (e.getX()-windowWidth*0.5f)*orthoX/windowWidth;
 			float YY = -(e.getY()-windowHeight*0.5f)*orthoX/windowWidth;
 			
 			System.out.printf("Dragged over: %f, %f\n", XX, YY);
+			
+			//Scaling
 			if(operation == 's'){
+				//sVal = 2;
 				
-			}
-			if(operation == 't'){
-				for(int i = 0; i< indices.length; i = i + 4){
-					
-					vertices[(indices[i+1])*3] = vertices[(indices[i+1])*3] + (XX - mouseX0);
-					vertices[(indices[i+1])*3+1] = vertices[(indices[i+1])*3+1] + (YY - mouseY0);
-					//vertices[(indices[i*4+1])*3+2] = vertices[(indices[i*4+1])*3+2];
-					  
-					vertices[(indices[i+2])*3] = vertices[(indices[i+2])*3] + (XX - mouseX0);
-			  		vertices[(indices[i+2])*3+1] = vertices[(indices[i+2])*3+1] + (YY - mouseY0);
-			  		//vertices[(indices[i*4+2])*3+2] = vertices[(indices[i*4+2])*3+2];
-			  		
-			  		vertices[(indices[i+3])*3] = vertices[(indices[i+3])*3] + (XX - mouseX0);
-			  		vertices[(indices[i+3])*3+1] = vertices[(indices[i+3])*3+1] + (YY - mouseY0); 
-			  		//vertices[(indices[i*4+3])*3+2] = vertices[(indices[i*4+3])*3+2];
+				int temp_x = e.getX() - iX0;
+				int temp_y = e.getY() - iY0;
+				float temp_s = (float)(0.1*(Math.sqrt(temp_x*temp_x + temp_y*temp_y)));
+				if(temp_s < sMin){
+					sVal = sMin;
+				}
+				else if(temp_s > sMax){
+					sVal = sMax;
+				}
+				else{
+					sVal = temp_s;
 				}
 			}
+			//Translating
+			if(operation == 't'){
+				tVal_x = XX - mouseX0;
+				tVal_y = YY - mouseY0;
+			}
+			//Rotating
+			if(operation == 'r'){
+				rVal = XX - mouseX0;
+				rVal_x = XX;
+				rVal_y = YY;
+				tVal_x = 0 - mouseX0;
+				tVal_y = 0 - mouseY0;
+			}
 			
-			mouseX0 = (e.getX()-windowWidth*0.5f)*orthoX/windowWidth;
-			mouseY0 = -(e.getY()-windowHeight*0.5f)*orthoX/windowWidth;
+			//mouseX0 = (e.getX()-windowWidth*0.5f)*orthoX/windowWidth;
+			//mouseY0 = -(e.getY()-windowHeight*0.5f)*orthoX/windowWidth;
 			
 		}
 		
 		@Override
 		public void mouseMoved(MouseEvent e) {
-			// TODO Auto-generated method stub
-			if(operation == 's'){
-				
-			}
 			
 		}
 
 		@Override
 		public void mouseClicked(MouseEvent e) {
-			// TODO Auto-generated method stub
 			
 		}
 
@@ -339,40 +419,51 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 		public void mousePressed(MouseEvent e) {
 			// TODO Auto-generated method stub
 			/*
-			 * Coordinates printout
+			 * OpenGL Coordinates printout
 			 */
 			float XX = (e.getX()-windowWidth*0.5f)*orthoX/windowWidth;
 			float YY = -(e.getY()-windowHeight*0.5f)*orthoX/windowWidth;
 			System.out.printf("Point clicked: (%.3f, %.3f)\n", XX, YY);
 			
-			//Original lines: these return the pixel integer coordinates from (0,0) in the upper left
+			//Original lines: getX() and getY() return the pixel integer coordinates from (0,0) in the upper left
+			iX0 = e.getX();
+			iY0 = e.getY();
 			//mouseX0 = e.getX();
 			//mouseY0 = e.getY();
 			mouseX0 = XX;
 			mouseY0 = YY;
 			System.out.printf("Point clicked: (%f, %f)\n", mouseX0, mouseY0);
-			if(e.getButton()==MouseEvent.BUTTON1) {	// Left button
-				
+			if(e.getButton()==MouseEvent.BUTTON1) {	
+				// Left button
 			}
-			else if(e.getButton()==MouseEvent.BUTTON3) {	// Right button
-							}
+			else if(e.getButton()==MouseEvent.BUTTON3) {	
+				// Right button
+			}
+			
+			if(operation == 't' || operation == 's'){
+				rVal = 0;				
+			}
+			if(operation == 's'){
+				tVal_x = XX - mouseX0;
+				tVal_y = YY - mouseY0;
+			}
+			clicked = true;
 		}
 
 		@Override
 		public void mouseReleased(MouseEvent e) {
-			// TODO Auto-generated method stub
+			
+			clicked = false;
 			
 		}
 
 		@Override
 		public void mouseEntered(MouseEvent e) {
-			// TODO Auto-generated method stub
 			
 		}
 
 		@Override
 		public void mouseExited(MouseEvent e) {
-			// TODO Auto-generated method stub
 			
 		}
 

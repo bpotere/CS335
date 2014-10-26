@@ -5,15 +5,45 @@ package helloOpenGL;
 
 
 
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
-import java.nio.DoubleBuffer;
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.DataBuffer;
+import java.awt.image.Raster;
+import java.awt.image.WritableRaster;
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.awt.image.DataBufferByte; 
 
+
+
+
+
+
+
+
+
+
+import java.nio.ByteOrder;
+import java.util.Hashtable;
+
+import javax.imageio.ImageIO;
 import javax.media.opengl.*;
 import javax.media.opengl.glu.GLU;
+import javax.media.opengl.glu.GLUquadric;
+
+import com.jogamp.opengl.util.awt.TextRenderer;
+
 
 
 
@@ -115,37 +145,55 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 			3, 32, 30, 31, 
 			3, 34, 32, 33};
 	float backrgb[] = new float[4]; 
-	float rot;
+	boolean bRotate = false;
+	boolean bTranslate = false;
+	boolean bLight1On = true;
+	boolean bLight2On = true;
+	boolean bLight3On = true;
+	boolean bFirstPerson = false;
+	float rot; 
+	float rotX; 
 	
-	boolean user_rotate = false;
-	boolean user_zoom = false;
-	boolean move_planets = true;
-	boolean angled_view = true;
-	double view_angle = Math.PI/4.0;
-	float model_angle = 0;
+	float halfCourtWidth = 5.0f;
+	float halfCourtLength = 8.4f;
 	
-	double day = 0;
-	double year = 0;
-	double lunar_cycle = 0;
-	double Zoom = 1;
+	//Variables for moving the ball around
+	boolean ballMoving = false;
+	double iBall_x, iBall_z, BallX, BallZ = 0;
+	double iBall_y = 0.8;
+	double BallY = 0.8;
 	
+	double tBall_x, tBall_y, tBall_z = 0;
+	//double initialVX, initialVY, initialVZ = 0;
+	float gravity = -3.2178f;			//acceleration due to gravity is 32.178 ft/sec^2
+	long initSysTime = System.currentTimeMillis();
+	double dTimeX = 0;
+	double dTimeY = 0;
+	double[] initialVector = {0.1, -0.1, 0};
+	double ballSpeed = 0.4;
+	double theta = Math.atan2(0.1, -0.1);
+	//double[] initialVelocity = {ballSpeed * Math.cos(theta), ballSpeed * Math.sin(theta)};
+	double initialVX = (Math.cos(theta)) * ballSpeed;
+	double initialVY = (Math.sin(theta)) * ballSpeed;
 	/*
 	 * Custom variables for mouse drag operations 
 	 */
+	boolean bZoom = false;
+	double Zoom = 10;
+	
 	int windowWidth, windowHeight;
 	float orthoX=40;
-	float tVal_x, tVal_y, rVal_x, rVal_y, rVal;
+	float tVal_x, tVal_y, rVal_x, rVal_y, rVal = 0;
 	double rtMat[] = new double[16];
-	
-	//Variables for rotating and zooming the camera
-	double mouseX0, mouseY0;
-	double centerX = 0;
-	double centerY = 0;
-	double eyeX = Math.cos(Math.PI/4.0);
-	double eyeY = 1;
-	double eyeZ = Math.sin(Math.PI/4.0);
+	int mouseX0, mouseY0;
 	int saveRTnow=0, mouseDragButton=0;
-	
+	GLUquadric earth;
+	int texID[]  = new int[3]; 
+    
+	 float[] lightPos = { 10,10,10,1 };        // light position
+	 float[] lightPos1 = { 0, 10, 0, 1};				//Light 1 is positioned straight up
+	 float[] lightPos2 = {-halfCourtLength, 1, 0, 1};	//Light 2 is over the left baseboard
+	 float[] lightPos3 = {halfCourtLength, 1, 0, 1};	//Light 3 is over the right baseboard
 
     	private GLU glu = new GLU();
 
@@ -163,18 +211,145 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 	        GL2 gl = gLDrawable.getGL().getGL2();
 	        //gl.glShadeModel(GL.GL_LINE_SMOOTH);              // Enable Smooth Shading
 	        gl.glClearColor(0.0f, 0.0f, 0.0f, 0.5f);    // Black Background
-	        gl.glClearDepth(1.0f);                      // Depth Buffer Setup
+	        //gl.glClearDepth(1.0f);                      // Depth Buffer Setup
 	        gl.glEnable(GL.GL_DEPTH_TEST);              // Enables Depth Testing
-	        gl.glDepthFunc(GL.GL_LEQUAL);               // The Type Of Depth Testing To Do
+	        //gl.glDepthFunc(GL.GL_LEQUAL);               // The Type Of Depth Testing To Do
 	        // Really Nice Perspective Calculations
 	        //gl.glHint(GL.GL_PERSPECTIVE_CORRECTION_HINT, GL.GL_NICEST);
 
+	        earth = glu.gluNewQuadric();
+	        
 	        gl.glMatrixMode(GL2.GL_MODELVIEW);
 	        gl.glLoadIdentity();
 	        gl.glGetDoublev(GL2.GL_MODELVIEW_MATRIX, rtMat, 0);
+	        
+	        
+	       
+	        float[] noAmbient = { 0.2f, 0.2f, 0.2f, 1f };   // low ambient light
+	        float[] diffuse = { 1.0f, 1.0f, 1.0f, 1f };     // full diffuse color
+	        float[] diffuse1 = { 1.0f, 0.0f, 0.0f, 0.0f };	// red diffuse color
+	        //gl.glEnable(GL2.GL_LIGHTING);
+	        //gl.glEnable(GL2.GL_LIGHT0);
+	        //gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_AMBIENT, noAmbient, 0);
+	        //gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_DIFFUSE, diffuse, 0);
+	        //gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_POSITION,lightPos, 0);
+	        
+	        gl.glEnable(GL2.GL_LIGHTING);
+	        //gl.glEnable(GL2.GL_LIGHT1);
+	        gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_AMBIENT, noAmbient, 0);
+	        gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_SPECULAR, diffuse, 0);
+	        gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_POSITION, lightPos1, 0);
+	        
+	        //gl.glEnable(GL2.GL_RESCALE_NORMAL );
+
+	        //gl.glEnable(GL2.GL_LIGHTING);
+	        //gl.glEnable(GL2.GL_LIGHT2);
+	        float[] noAmbient2 = { 1.0f, 0.0f, 0.0f, 1.0f};
+	        float[] diffuse2 = { 1.0f, 0.0f, 0.0f, 1.0f };
+	        gl.glLightfv(GL2.GL_LIGHT2, GL2.GL_AMBIENT, noAmbient2, 0);
+	        gl.glLightfv(GL2.GL_LIGHT2, GL2.GL_SPECULAR, diffuse2, 0);
+	        gl.glLightfv(GL2.GL_LIGHT2, GL2.GL_POSITION, lightPos2, 0);
+	        
+	        //gl.glEnable(GL2.GL_RESCALE_NORMAL );
+	        
+	        //gl.glEnable(GL2.GL_LIGHTING);
+	        //gl.glEnable(GL2.GL_LIGHT3);
+	        gl.glLightfv(GL2.GL_LIGHT3, GL2.GL_AMBIENT, noAmbient, 0);
+	        gl.glLightfv(GL2.GL_LIGHT3, GL2.GL_SPECULAR, diffuse, 0);
+	        gl.glLightfv(GL2.GL_LIGHT3, GL2.GL_POSITION, lightPos3, 0);
+	        
+	        gl.glEnable(GL2.GL_RESCALE_NORMAL );
+	        
+	        // load an image; 
+	        try {
+	        	//The UK Logo
+				//BufferedImage aImage = ImageIO.read(new File("C:\\Users\\Bryan\\eclipse_workspace\\UKY.jpg"));
+				//URL url = new URL("http:\\")
+				//ByteBuffer buf = convertImageData(aImage);
+				
+				gl.glGenTextures(3, texID, 0);
+				//gl.glBindTexture(GL.GL_TEXTURE_2D, texID[0]);
+				
+				//The basketball court
+				BufferedImage aImage2 = ImageIO.read(new File("C:\\Users\\Bryan\\eclipse_workspace\\ruppoverheadwall3.jpg"));
+				ByteBuffer buf2 = convertImageData(aImage2);
+				//gl.glGenTextures(3, texID, 0);
+				gl.glBindTexture(GL.GL_TEXTURE_2D, texID[1]);
+				
+				gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR);
+		        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
+
+				gl.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGB, aImage2.getWidth(), 
+	                    aImage2.getHeight(), 0, GL2.GL_BGR, GL.GL_UNSIGNED_BYTE, buf2);
+				
+				
+				//The basketball texture
+				BufferedImage aImage3 = ImageIO.read(new File("C:\\Users\\Bryan\\eclipse_workspace\\Basketball2.jpg"));
+				ByteBuffer buf3 = convertImageData(aImage3);
+				gl.glBindTexture(GL.GL_TEXTURE_2D, texID[2]);
+				
+				gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR);
+		        gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
+				
+				gl.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGB, aImage3.getWidth(), 
+	                    aImage3.getHeight(), 0, GL2.GL_BGR, GL.GL_UNSIGNED_BYTE, buf3);
+				
+				gl.glEnable(GL.GL_TEXTURE_2D);
+				
+				gl.glTexEnvf(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_MODULATE);
+				//gl.glTexEnvf(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_REPLACE);
+				
+			} catch (IOException e) {
+				// 
+				e.printStackTrace();
+			} 
 	    }
 
 
+	    
+	    private ByteBuffer convertImageData(BufferedImage bufferedImage) {
+	        ByteBuffer imageBuffer;
+	        //WritableRaster raster;
+	        //BufferedImage texImage;
+
+	        /*
+	        ColorModel glAlphaColorModel = new ComponentColorModel(ColorSpace
+	                .getInstance(ColorSpace.CS_sRGB), new int[] { 8, 8, 8, 8 },
+	                true, false, Transparency.TRANSLUCENT, DataBuffer.TYPE_BYTE);
+
+	        raster = Raster.createInterleavedRaster(DataBuffer.TYPE_BYTE,
+	                bufferedImage.getWidth(), bufferedImage.getHeight(), 4, null);
+	        texImage = new BufferedImage(glAlphaColorModel, raster, true,
+	                new Hashtable());
+
+	        // copy the source image into the produced image
+	        Graphics g = texImage.getGraphics();
+	        g.setColor(new Color(0f, 0f, 0f, 0f));
+	        g.fillRect(0, 0, 256, 256);
+	        g.drawImage(bufferedImage, 0, 0, null);
+*/
+	        // build a byte buffer from the temporary image
+	        // that be used by OpenGL to produce a texture.
+	        
+	        DataBuffer buf = bufferedImage.getRaster().getDataBuffer(); 
+	      
+	        
+	        final byte[] data = ((DataBufferByte) buf).getData();
+
+	        //byte[] data = ((DataBufferByte) texImage.getRaster().getDataBuffer())
+	          //      .getData();
+
+	        //System.out.printf("%d %d, %d\n", bufferedImage.getWidth(), bufferedImage.getHeight(), data.length); 
+	        //imageBuffer = ByteBuffer.allocateDirect(data.length);
+	        //imageBuffer.order(ByteOrder.nativeOrder());
+	        //imageBuffer.put(data, 0, data.length);
+	        //imageBuffer.flip();
+
+	        //return imageBuffer;
+	        
+	        return (ByteBuffer.wrap(data)); 
+	    }
+	    
 	    
 	    public void reshape(GLAutoDrawable gLDrawable, int x, int y, int width, 
 	            int height) {
@@ -188,209 +363,381 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 	        gl.glViewport(0, 0, width, height);
 	        gl.glMatrixMode(GL2.GL_PROJECTION);
 	        gl.glLoadIdentity();
-	        gl.glOrtho(-orthoX*0.5, orthoX*0.5, -orthoX*0.5*height/width, orthoX*0.5*height/width, -100, 100);
-	        //glu.gluPerspective(45.0f, h, 1.0, 200.0);
+	        //gl.glOrtho(-orthoX*0.5, orthoX*0.5, -orthoX*0.5*height/width, orthoX*0.5*height/width, -100, 100);
+	        glu.gluPerspective(45.0f, h, 1.0, 200.0);
+	        //glu.gluLookAt(0, 1, 5, 0, 0, 0, 0, 1, 0);
 	        
-	        if(angled_view){
-	        	glu.gluLookAt(Math.cos(Math.PI/4.0), 1, Math.sin(Math.PI/4.0), 0, 0, 0, 0, 1, 0);        
-	        }
+	        gl.glMatrixMode(GL2.GL_MODELVIEW);
+	        gl.glLoadIdentity();
+	        //glu.gluLookAt(0, 0, 6, 0, 0, 0, 0, 1, 0);
 	    }
 
-	    //THIS FUNCTION DRAWS A WIREFRAME SPHERE WITH THE GIVEN SPHERICAL COORDINATES    
-	    public void drawWireFrameSphere(final GL2 gl){
+	    public void drawCourtFloor(final GL2 gl){
 	    	
-	    	double Sphere_x; double Sphere_y; double Sphere_z;
-			double rho = 1.0;			//distance from the origin
-			double theta;		//angle from the positive x-axis
-			double phi;			//angle away from the z-axis toward the y-axis  
-			//double X_offset; double Y_offset; double Z_offset;	
-	    	
-	    	//Latitude lines
-			for(int j = -240; j < 270; j = j + 30){
-				gl.glPushMatrix();
-				//gl.glLoadIdentity();
-				gl.glRotated(90, 1, 0, 0);
-				phi = j/180.0 * Math.PI;
-				gl.glBegin(GL2.GL_LINE_STRIP);
-				gl.glColor3f(1, 1, 1);
-				for(int i = 0; i < 360; i++){
-					theta = i/180.0 * Math.PI;
-					Sphere_x = rho * Math.sin(phi) * Math.cos(theta);
-					Sphere_y = rho * Math.sin(phi) * Math.sin(theta);
-					Sphere_z = rho * Math.cos(phi);
-					gl.glVertex3d(Sphere_x, Sphere_y, Sphere_z);
-				}
-				gl.glEnd();
-				gl.glPopMatrix();
-			}
-			//Longitude lines
-			for(int j = 90; j < 270; j = j + 30){
-				gl.glPushMatrix();
-				//gl.glLoadIdentity();
-				gl.glRotated(90, 1, 0, 0);
-				theta = j/180.0 * Math.PI;
-				gl.glBegin(GL2.GL_LINE_STRIP);
-				gl.glColor3f(1, 1, 1);
-				for(int i = 0; i < 360; i++){
-					phi = i/180.0 * Math.PI;
-					Sphere_x = rho * Math.sin(phi) * Math.cos(theta);
-					Sphere_y = rho * Math.sin(phi) * Math.sin(theta);
-					Sphere_z = rho * Math.cos(phi);
-					gl.glVertex3d(Sphere_x, Sphere_y, Sphere_z);
-				}
-				gl.glEnd();
-				gl.glPopMatrix();
-			}
+	    	gl.glBegin(GL2.GL_QUADS);
+	         gl.glTexCoord2f(0.0f, 0.0f);
+	         gl.glVertex3f(-halfCourtLength, 0.0f, -halfCourtWidth);
+	         
+	         gl.glTexCoord2f(1.0f, 0.0f);
+	         gl.glVertex3f(halfCourtLength, 0.0f, -halfCourtWidth);
+	         
+	         gl.glTexCoord2f(1.0f, 1.0f);
+	         gl.glVertex3f(halfCourtLength, 0.0f, halfCourtWidth);
+	         
+	         gl.glTexCoord2f(0.0f, 1.0f);
+	         gl.glVertex3f(-halfCourtLength, 0.0f, halfCourtWidth);
+	         
+	         gl.glEnd();
+	         
+	         //glu.gluSphere(earth, 3, 0, 0);
+	         
+	         //Drawing a surrounding floor boundary around the court
+	         gl.glBegin(GL2.GL_QUADS);
+	         gl.glVertex3f(-1.5f * halfCourtLength, 0.0f, -1.5f * halfCourtWidth);
+	         gl.glVertex3f(1.5f * halfCourtLength, 0, -1.5f * halfCourtWidth);
+	         gl.glVertex3f(1.5f * halfCourtLength, 0, -halfCourtWidth);
+	         gl.glVertex3f(-1.5f * halfCourtLength, 0, -halfCourtWidth);
+	         gl.glEnd();
+	         
+	         gl.glBegin(GL2.GL_QUADS);
+	         gl.glVertex3f(-1.5f * halfCourtLength, 0.0f, -halfCourtWidth);
+	         gl.glVertex3f(-halfCourtLength, 0, -halfCourtWidth);
+	         gl.glVertex3f(-halfCourtLength, 0, 1.5f * halfCourtWidth);
+	         gl.glVertex3f(-1.5f * halfCourtLength, 0, 1.5f * halfCourtWidth);
+	         gl.glEnd();
+	         
+	         gl.glBegin(GL2.GL_QUADS);
+	         gl.glVertex3f(-halfCourtLength, 0.0f, halfCourtWidth);
+	         gl.glVertex3f(halfCourtLength, 0, halfCourtWidth);
+	         gl.glVertex3f(halfCourtLength, 0, 1.5f * halfCourtWidth);
+	         gl.glVertex3f(-halfCourtLength, 0, 1.5f * halfCourtWidth);
+	         gl.glEnd();
+	         
+	         gl.glBegin(GL2.GL_QUADS);
+	         gl.glVertex3f(halfCourtLength, 0.0f, -halfCourtWidth);
+	         gl.glVertex3f(1.5f * halfCourtLength, 0, -halfCourtWidth);
+	         gl.glVertex3f(1.5f * halfCourtLength, 0, 1.5f * halfCourtWidth);
+	         gl.glVertex3f(halfCourtLength, 0, 1.5f * halfCourtWidth);
+	         gl.glEnd();
+
 	    }
 	    
-	    
+	    public void drawCube(final GL2 gl) {
+	    	gl.glBegin(GL2.GL_QUADS);
+	         
+	    	// on the XY plane
+	    	// front plane
+	         gl.glNormal3f(0,  0, 1);
+	         gl.glColor3f(1, 0, 0);
+	         
+	         gl.glTexCoord2f(0.0f, 1.0f);
+	         gl.glVertex3f(0, 0, 1); 
+	        
+	         
+	         
+	         gl.glTexCoord2f(1.0f, 1.0f);
+	         gl.glVertex3f(1, 0, 1);
+	         
+	         gl.glTexCoord2f(1.0f, 0.0f);
+	         gl.glVertex3f(1, 1, 1); 
+	         
+	         gl.glTexCoord2f(0.0f, 0.0f);
+	         gl.glVertex3f(0, 1, 1);
+	        
+	         gl.glTexCoord2f(98.0f/255, 136.0f/255);
+	         // back plane
+	         gl.glNormal3f(0,  0, -1);
+	         gl.glColor3f(1, 0, 0);
+	         gl.glVertex3f(0, 0, 0); 
+	         gl.glVertex3f(1, 0, 0);
+	         gl.glVertex3f(1, 1, 0); 
+	         gl.glVertex3f(0, 1, 0);
+	         
+	         // on the YZ plane
+	         // left plane 
+	         gl.glNormal3f(-1,  0, 0);
+	         gl.glColor3f(0, 1, 0);
+	         gl.glVertex3f(0, 0, 0); 
+	         gl.glVertex3f(0, 1, 0);
+	         gl.glVertex3f(0, 1, 1); 
+	         gl.glVertex3f(0, 0, 1);
+	         
+	         // right plane
+	         gl.glNormal3f(1,  0, 0);
+	         gl.glColor3f(0, 1, 0);
+	         gl.glVertex3f(1, 0, 0); 
+	         gl.glVertex3f(1, 1, 0);
+	         gl.glVertex3f(1, 1, 1); 
+	         gl.glVertex3f(1, 0, 1);
+	         
+	         
+	         // on the XZ plane,  
+	         // up plane; 
+	         gl.glNormal3f(0,  1, 0);
+	         gl.glColor3f(0, 0, 1);
+	         gl.glTexCoord2f(0+0.2f, 1-(1-0.2f));gl.glVertex3f(0, 1, 0); 
+	         gl.glTexCoord2f(1-0.2f, 1-(1-0.2f));gl.glVertex3f(1, 1, 0);
+	         gl.glTexCoord2f(1-0.2f, 1-(0 + 0.2f));gl.glVertex3f(1, 1, 1); 
+	         gl.glTexCoord2f(0+0.2f, 1-(0 + 0.2f));gl.glVertex3f(0, 1, 1);
+	         
+	         // down plane; 
+	         gl.glNormal3f(0,  -1, 0);
+	         gl.glColor3f(0, 0, 1);
+	         gl.glVertex3f(0, 0, 0); 
+	         gl.glVertex3f(1, 0, 0);
+	         gl.glVertex3f(1, 0, 1); 
+	         gl.glVertex3f(0, 0, 1);
+	        
+	         gl.glEnd(); 
+	    }
 		@Override
 		public void display(GLAutoDrawable gLDrawable) {
 			// TODO Auto-generated method stub
 			final GL2 gl = gLDrawable.getGL().getGL2();
 
-			gl.glClearColor(0, 0, 0, 1);
+			//gl.glClearColor(backrgb[0], 0, 1, 1);
+			gl.glClearColor(0.5f, 0.5f, 0.5f, 1);
 			gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
 
 			//backrgb[0]+=0.0005;
 			//if (backrgb[0]> 1) backrgb[0] = 0; 
 
 			
-			
-			gl.glMatrixMode(GL2.GL_PROJECTION);
-			gl.glLoadIdentity();
-			gl.glOrtho(-orthoX*0.5, orthoX*0.5, -orthoX*0.5*windowHeight/windowWidth, orthoX*0.5*windowHeight/windowWidth, -100, 100);
-			glu.gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, 0, 0, 1, 0);
-			
-			
-			//glu.gluPerspective(45.0f, windowWidth/windowHeight, 1.0, 200.0);
-			
-			if(move_planets){
-				day = (day + 0.3) % 360;
-				year = (year + 0.3) % 360;
-				lunar_cycle = (lunar_cycle + 2.8) % 360;
-				
-			}
+	         //glu.gluQuadricDrawStyle(earth, GLU.GLU_LINE);
 
+	         
+	         //glu.gluDeleteQuadric(earth);
+			
+			//THE CAMERA
 			gl.glMatrixMode(GL2.GL_MODELVIEW);
-			
-			//THE SUN
-			gl.glPushMatrix();
-			gl.glRotated(day, 0, 1, 0);
-			gl.glScaled(Zoom, Zoom, Zoom);
-			drawWireFrameSphere(gl);
-			gl.glPopMatrix();
-			
-			//Rotate everything about the y-axis (the Sun's center)
-			//gl.glRotated(0.5f, 0, 1, 0);
-			
-			
-			//THE EARTH
-			gl.glPushMatrix();
-			gl.glRotated(year, 5*Math.sin(12.0/180.0*Math.PI), 5*Math.cos(12.0/180.0*Math.PI), 0);
-			gl.glTranslated(-5.0 * Zoom, 1 * Zoom, 0);
-			gl.glScaled(1.0/3.0, 1.0/3.0, 1.0/3.0);
-			gl.glScaled(Zoom, Zoom, Zoom);
-			drawWireFrameSphere(gl);
-			gl.glPopMatrix();
-			
-			//THE MOON
-			gl.glPushMatrix();
-			gl.glRotated(year, 5*Math.sin(12.0/180.0*Math.PI), 5*Math.cos(12.0/180.0*Math.PI), 0);
-			gl.glTranslated(-5.0 * Zoom, 1 * Zoom, 0);
-			//gl.glRotated(day, 0, 1, 0);
-			gl.glRotated(lunar_cycle, Math.sin(12.0/180.0*Math.PI), -Math.cos(12.0/180.0*Math.PI), 0);
-			gl.glTranslated(0.0, 0.0, 1 * Zoom);
-			gl.glScaled(1.0/9.0, 1.0/9.0, 1.0/9.0);
-			gl.glScaled(Zoom, Zoom, Zoom);
-			drawWireFrameSphere(gl);
-			gl.glPopMatrix();
-			
-			
-			
-			//Orbit of the Moon: a blue circle tilted 12 degrees
-			//SPHERICAL COORDINATES
-			double Sphere_x = 0;	double Sphere_y = 0;	double Sphere_z = 0;
-			double rho = 1.0;
-			double theta = 12.0/180.0 * Math.PI;			//angle from the positive x-axis
-			double phi = 0;		//angle away from the z-axis toward the y-axis  
-			double X_offset = 0;	double Y_offset = 0;	double Z_offset = 0;
-			
-			gl.glPushMatrix();
-			gl.glRotated(year, 5*Math.sin(12.0/180.0*Math.PI), 5*Math.cos(12.0/180.0*Math.PI), 0);
-			//gl.glRotated(year, 0, 12, 1);
-			gl.glTranslated(-5 * Zoom, 1 * Zoom, 0);
-			gl.glScaled(Zoom, Zoom, Zoom);
-			gl.glBegin(GL2.GL_LINE_STRIP);
-			gl.glColor3d(0, 0, 1.0);
-			for(int h = 0; h <= 360; h++){
-				phi = h/180.0 * Math.PI;
-				Sphere_x = rho * Math.sin(phi) * Math.cos(theta) + X_offset;
-				Sphere_y = rho * Math.sin(phi) * Math.sin(theta) + Y_offset;
-				Sphere_z = rho * Math.cos(phi) + Z_offset;
-				gl.glVertex3d(Sphere_x, Sphere_y, Sphere_z);
+	        gl.glLoadIdentity();
+	        
+	        gl.glEnable(GL2.GL_LIGHTING);
+	        if (bLight1On){
+	        	gl.glEnable(GL2.GL_LIGHT1);
+	        }
+	        else{
+	        	gl.glDisable(GL2.GL_LIGHT1);
+	        }
+	        if (bLight2On){
+	        	gl.glEnable(GL2.GL_LIGHT2);
+	        }
+	        else{
+	        	gl.glDisable(GL2.GL_LIGHT2);
+	        }
+	        if (bLight3On){
+	        	gl.glEnable(GL2.GL_LIGHT3);
+	        }
+	        else{
+	        	gl.glDisable(GL2.GL_LIGHT3);
+	        }
+	        
+	        //Zooming in and out
+	        if(!bFirstPerson){
+	        	glu.gluLookAt(0, 0, Zoom, 0, 0, 0, 0, 1, 0); 
+	        }
+	        else{
+	        	glu.gluLookAt( BallX, BallY, BallZ,
+    					BallX - initialVX, BallY - initialVY, BallZ,
+    					0, 1, 0);
+	        }
+	         gl.glPushMatrix();
+	         
+	         //Rotate the scene according to previous user inputs
+	         gl.glRotatef(rot, 0, 1, 0);
+	       
+	         gl.glRotatef(rotX, 1, 0, 0);
+	         
+	         //Translate the whole scene accorDing to previous user inputs
+	         gl.glTranslatef(tVal_x, tVal_y, 0);
+	         
+	         //gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_POSITION,lightPos, 0);
+	         gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_POSITION, lightPos1, 0);
+	         gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_POSITION, lightPos2, 0);
+	         gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_POSITION, lightPos3, 0);
+	         gl.glPushMatrix(); 
+	         gl.glTranslatef(-0.5f, -0.5f, -0.5f); 
+	         
+	       //The color of the sphere
+	         float materialColor[] = {1.0f, 1.0f, 0.0f, 1.0f};
+	         //The specular (shiny) component of the material
+	         float  materialSpecular[] = {0,0,1,1};
+	         //The color emitted by the material
+	         float materialEmission[] = {1.0f,1.0f,0, 1.0f};
+
+	         float shininess = 20;
+
+	         //gl.glEnable(GL2.GL_COLOR_MATERIAL);
+	         gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_AMBIENT_AND_DIFFUSE, materialColor, 0);
+	         gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_SPECULAR, materialSpecular, 0);
+	         //gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_EMISSION, materialEmission, 0);
+	         gl.glMaterialf(GL2.GL_FRONT_AND_BACK, GL2.GL_SHININESS, shininess); 
+		     
+	         double theta = Math.atan2(initialVector[1], initialVector[0]);
+	         if(BallX > 1.5 * halfCourtLength || BallX < 1.5 * -halfCourtLength){
+	        	 ballMoving = false;
+	         }
+	         if(BallY > 50){
+	        	 ballMoving = false;
+	         }
+	         if(BallZ > 1.5 * halfCourtWidth || BallZ < 1.5 * -halfCourtWidth){
+	        	 ballMoving = false;
+	         }
+	         if(ballMoving){    
+		         //POSITIONING THE BASKETBALL
+		         
+	        	 
+	        	 //long temptime = System.currentTimeMillis();
+		         if(BallY < 0.025){
+		        	 initialVY = -(initialVY + gravity * dTimeY);
+		        	 //iBall_x = initialVX * dTimeX;
+		        	 iBall_y = 0.025;
+		        	 //iBall_z = 0;
+		        	 dTimeY = 0;
+		         }
+		         
+		         // v_final = v_initial + a*t
+		         dTimeX += 0.0015;
+		         dTimeY += 0.0015;
+		         //Current position for the basketball
+		         //r_final = r_initial + v_initial*t + 1/2*a*t^2
+		         BallX = iBall_x + initialVX * (dTimeX);
+		         BallY = iBall_y + initialVY * (dTimeY) + 0.5 * gravity * Math.pow(dTimeY, 2);
+		         BallZ = iBall_z; // + initialVector[2] * (dTime);
+		         tBall_x = BallX - iBall_x;
+		         tBall_y = BallY - iBall_y;
+		         tBall_z = BallZ - iBall_z;
 			}
-			gl.glEnd();
-			gl.glPopMatrix();
-			
-			
-			//Orbit of the Earth: a red circle
-			//SPHERICAL COORDINATES
-			Sphere_x = 0;	Sphere_y = 0;	Sphere_z = 0;
-			rho = 5.0 * Zoom;
-			theta = 0.0;			//angle from the positive x-axis
-			phi = Math.PI/2.0;		//angle away from the z-axis toward the y-axis  
-			
-			X_offset = 0;	Y_offset = 0;	Z_offset = 0;
-			
-			gl.glPushMatrix();
-			//gl.glRotated(year, 0, 12, 1);
-			gl.glRotated(90, 1, 0, 0);
-			gl.glRotated(-12, 0, 1, 0);
-			gl.glScaled(Zoom, Zoom, Zoom);
-			gl.glBegin(GL2.GL_LINE_STRIP);
-			gl.glColor3d(1.0, 0, 0);
-			for(int h = 0; h <= 360; h++){
-				theta = h/180.0 * Math.PI;
-				Sphere_x = rho * Math.sin(phi) * Math.cos(theta) + X_offset;
-				Sphere_y = rho * Math.sin(phi) * Math.sin(theta) + Y_offset;
-				Sphere_z = rho * Math.cos(phi) + Z_offset;
-				gl.glVertex3d(Sphere_x, Sphere_y, Sphere_z);
-			}
-			gl.glEnd();
-			gl.glPopMatrix();
-			
-			
-			//CARTESIAN X, Y, and Z AXIS
-			gl.glPushMatrix();
-			gl.glLoadIdentity();
-			//X-axis
-			gl.glBegin(GL2.GL_LINE_STRIP);
-			gl.glColor3d(1, 0, 0);
-			gl.glVertex3d(10, 0, 0);
-			gl.glVertex3d(-10, 0, 0);
-			gl.glEnd();
-			
-			//Y-axis
-			gl.glBegin(GL2.GL_LINE_STRIP);
-			gl.glColor3d(0, 1, 0);
-			gl.glVertex3d(0, 10, 0);
-			gl.glVertex3d(0, -10, 0);
-			gl.glEnd();
-			
-			//Z-axis
-			gl.glBegin(GL2.GL_LINE_STRIP);
-			gl.glColor3d(0, 0, 1);
-			gl.glVertex3d(0, 0, 10);
-			gl.glVertex3d(0, 0, -10);
-			gl.glEnd();
-			gl.glPopMatrix();
-			
-			
-			
-			
-	        //THE UK SHAPE FROM HOMEWORK 2
-			/*
+	         
+	         //DRAWING THE BASKETBALL
+	         gl.glPushMatrix();
+	         
+	         if(!bFirstPerson){
+		         gl.glTranslated(tBall_x, tBall_y, tBall_z);	//Translating the basketball again
+		         gl.glTranslated(iBall_x, iBall_y, iBall_z);	//The starting location of the basketball
+		         //drawCube(gl);
+		         glu.gluQuadricDrawStyle(earth, GLU.GLU_FILL);
+		         glu.gluQuadricNormals(earth, GLU.GLU_SMOOTH);
+		         gl.glBindTexture(GL.GL_TEXTURE_2D, texID[2]);
+		         glu.gluQuadricTexture(earth, true);
+		         glu.gluSphere(earth, 0.075f, 24, 32);
+		         
+		         gl.glColor4d(0, 0, 0, 1);
+		         gl.glBegin(GL2.GL_LINE_STRIP);
+		         gl.glVertex3d(ballSpeed*Math.cos(theta), ballSpeed*Math.sin(theta), 0);
+		         gl.glVertex3d(0 , 0, 0);
+		         gl.glEnd();
+	         //}
+	         //else{
+	        	 //gl.glMatrixMode(GL2.GL_PROJECTION);
+	        	 //gl.glLoadIdentity();
+	        	 //gl.glTranslated(tBall_x, tBall_y, tBall_z);
+	        	 //gl.glTranslated(iBall_x,  iBall_y, iBall_z);
+	        	 theta = Math.atan2(initialVector[1], initialVector[0]);
+	        	 
+	        	 //gl.glMatrixMode(GL2.GL_MODELVIEW);
+	         }
+	         gl.glPopMatrix();
+	         
+	         
+	         //DRAW THE COURT FLOOR
+	         gl.glBindTexture(GL.GL_TEXTURE_2D, texID[1]);
+	         drawCourtFloor(gl);
+	         
+	         gl.glPopMatrix(); 
+	         
+	         materialColor[0]= 0; 
+	         
+	         gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_DIFFUSE, materialColor, 0);
+	         gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_SPECULAR, materialSpecular, 0);
+	         //gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_EMISSION, materialEmission, 0);
+	         gl.glMaterialf(GL2.GL_FRONT_AND_BACK, GL2.GL_SHININESS, 100); 
+	         
+	         gl.glPushMatrix();
+	         gl.glTranslatef(0, 2, 0);
+	         gl.glColor3f(0.8f, 0.8f, 0.8f);
+	         //mysphere(gl); 
+	         gl.glPopMatrix();
+	         
+	         
+	         
+	         //gl.glTranslatef(2, 0, 0);
+	         //gl.glTranslatef(-1f, -1.0f, -1.0f);
+	         //gl.glTranslatef(0.5f, 0.5f, 0.5f);
+	         //gl.glScalef(0.5f, 0.5f, 0.5f); 
+	         //gl.glTranslatef(-0.5f, -0.5f, -0.5f);
+	         //drawCube(gl); 
+	         
+	         
+	         
+	         //gl.glScalef(1.0f/2, 1, 1);
+	         //gl.glTranslatef(0, -delta, 0);
+	         
+	         
+	         int width = 100, height = 100; 
+	         byte[] src = new byte[width*height];
+
+	         for(int a=0; a<height; a++){
+	        	 int color = (int)(a*1.0f/height*255); 
+	             for(int b=0; b<width; b++){
+	                 src[a*width+b]= (byte) color;
+	             }
+	         }
+
+	         gl.glPixelStorei(GL2.GL_UNPACK_ALIGNMENT, 1);
+	         gl.glPixelStorei(GL2.GL_UNPACK_SKIP_PIXELS, 0);
+	         gl.glPixelStorei(GL2.GL_UNPACK_SKIP_ROWS, 0);
+
+	         
+	         
+	         gl.glPushMatrix(); 
+	         gl.glLoadIdentity(); 
+	         
+	         gl.glMatrixMode(GL2.GL_PROJECTION);
+	         gl.glPushMatrix(); 
+	         
+	         gl.glLoadIdentity(); 
+	         
+	         glu.gluOrtho2D(0, windowWidth, 0, windowHeight);
+	         
+	         gl.glRasterPos2f(windowWidth/2, windowHeight/2); // 0.0f);
+	         
+	         
+	         /*gl.glDrawPixels(width, height,
+	                 GL2.GL_RED, GL.GL_UNSIGNED_BYTE,
+	                 ByteBuffer.wrap(src));
+	         */
+	         gl.glPopMatrix(); 
+	         
+	         gl.glMatrixMode(GL2.GL_MODELVIEW);
+	         gl.glPopMatrix();
+	         
+	         
+	         gl.glPopMatrix();
+	         
+	         //gl.glRasterPos2i(0, 0);
+	         //gl.glDrawPixels(width, height,
+	         //        GL2.GL_BLUE, GL.GL_UNSIGNED_BYTE,
+	          //       ByteBuffer.wrap(src));
+	         
+	         /*
+	         String text = "Hello World";
+
+	         TextRenderer renderer = new TextRenderer(new Font("Serif", Font.PLAIN, 12), true, true);
+	         renderer.beginRendering(100, 100);
+
+	         
+	         gl.glPushMatrix();
+	         //gl.glLoadIdentity();
+	         //gl.glTranslatef(2.0f, 2.0f, 0.0f);
+	         renderer.setColor(0.0f, 1.0f, 1.0f, 1);
+	         renderer.draw(text, 0, 0);
+	         renderer.flush();
+	         gl.glPopMatrix();
+
+	         renderer.endRendering();
+	        */
+	        /*
 			gl.glBegin(GL.GL_TRIANGLES);        // Drawing Using Triangles
         	for(int i=0; i<44; i++) {
         		gl.glColor3f(0.7f, 0.7f, 0.7f);
@@ -404,8 +751,8 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
   					  		  vertices[(indices[i*4+3])*3+1],
   					  		  vertices[(indices[i*4+3])*3+2]);
         	}
-	        gl.glEnd();                         // Finished Drawing The Triangle
-	        */
+	        gl.glEnd();
+	          */                       // Finished Drawing The Triangle
 		}
 
 		@Override
@@ -418,17 +765,80 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 		public void keyTyped(KeyEvent e) {
 			// TODO Auto-generated method stub
 		    char key= e.getKeyChar();
-			System.out.printf("Key typed: %c\n", key); 
+			//System.out.printf("Key typed: %c\n", key); 
+			if (key == KeyEvent.VK_ESCAPE )
+				System.exit(0);
+			if (key == '0'){
+				rot = 0;
+				rotX = 0;
+				tVal_x = 0;
+				tVal_y = 0;
+				Zoom = 10;
+				
+				ballMoving = false;
+				iBall_x = 0;
+				iBall_z = 0;
+				BallX = 0;
+				BallZ = 0;
+				iBall_y = 0.8;
+				BallY = 0.8;
+				
+				tBall_x = 0;
+				tBall_y = 0;
+				tBall_z = 0;
+				//double initialVX, initialVY, initialVZ = 0;
+				gravity = -3.2178f;			//acceleration due to gravity is 32.178 ft/sec^2
+				initSysTime = System.currentTimeMillis();
+				dTimeX = 0;
+				dTimeY = 0;
+				initialVector[0] = 0.1; initialVector[1] = -0.1; initialVector[2] = 0;
+				ballSpeed = 0.4;
+				theta = Math.atan2(0.1, -0.1);
+				//double[] initialVelocity = {ballSpeed * Math.cos(theta), ballSpeed * Math.sin(theta)};
+				initialVX = ballSpeed * Math.cos(theta);
+				initialVY = ballSpeed * Math.sin(theta);
+			}
+			if (key == '1'){
+				bLight1On = !bLight1On;
+			}
+			if (key == '2'){
+				bLight2On = !bLight2On;
+			}
+			if (key == '3'){
+				bLight3On = !bLight3On;
+			}
+			if (key == ' '){
+				ballMoving = !ballMoving;
+			}
+			//Changing the initial velocity
+			if (key == 'q' || key == 'Q'){
+				initialVector[0] += 0.01;
+			}
+			if (key == 'a' || key == 'A'){
+				initialVector[0] -= 0.01;
+			}
+			if (key == 'w' || key == 'W'){
+				initialVector[1] += 0.01;
+			}
+			if (key == 's' || key == 'S'){
+				initialVector[1] -= 0.01;
+			}
+			if (key == 'e' || key == 'E'){
+				ballSpeed -= 0.01;
+			}
+			if (key == 'd' || key == 'D'){
+				ballSpeed += 0.01;
+			}
+			if (key == 'p' || key == 'P'){
+				bFirstPerson = !bFirstPerson;
+			}
+			theta = Math.atan(initialVector[1]/initialVector[0]);
+			//theta = Math.atan2(initialVector[1], initialVector[0]);
+			initialVX = (Math.cos(theta)) * ballSpeed;
+			initialVY = (Math.sin(theta)) * ballSpeed;
+			//initialVX = ballSpeed * initialVector[0];
+			//initialVY = ballSpeed * initialVector[1];
 			
-			if(key == 't'){
-				move_planets = !move_planets;
-			}
-			if(key == '0'){
-				angled_view = !angled_view;
-			}
-			if(key == 'r' || key == 'R'){
-				Zoom = 1;
-			}
 		}
 
 		@Override
@@ -449,23 +859,23 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 			float XX = (e.getX()-windowWidth*0.5f)*orthoX/windowWidth;
 			float YY = -(e.getY()-windowHeight*0.5f)*orthoX/windowWidth;
 			
-			if(user_rotate){
-				centerX = XX;
-				centerY = YY;
+			if(bRotate){
+				rot += (e.getX()-mouseX0)*0.5;		
+				rotX += (e.getY() - mouseY0)*0.5; 
 			}
-			if(user_zoom){
-				System.out.printf("%f\n", mouseX0 - XX);
-				if(Zoom > 0.1 && mouseX0 - XX > 0){
-					Zoom = Zoom * (1 + (mouseX0 - XX));
+			if(bTranslate){
+				tVal_x += (e.getX()-mouseX0)*0.05;
+				tVal_y += (mouseY0 - e.getY())*0.05;
+			}
+			if(bZoom){
+				if( (Zoom < 30 && Zoom + (e.getY()-mouseY0)*0.5 < 30)
+						&& (Zoom > 0 && Zoom + (e.getY()-mouseY0)*0.5 > 0)){
+					Zoom += (e.getY()-mouseY0)*0.5;
 				}
-				else if(Zoom < 10.0 && mouseX0 - XX < 0){
-					Zoom = Zoom * (1 + (mouseX0 - XX));
-				}
-				//Zoom = Zoom * (1 + (mouseX0 - XX)/100.0);	
-			}	
-			
-			mouseX0 = XX;
-			mouseY0 = YY;
+				
+			}
+			mouseX0 = e.getX(); 
+			mouseY0 = e.getY(); 
 		}
 		
 		@Override
@@ -488,27 +898,28 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 			 */
 			float XX = (e.getX()-windowWidth*0.5f)*orthoX/windowWidth;
 			float YY = -(e.getY()-windowHeight*0.5f)*orthoX/windowWidth;
-			System.out.printf("Point clicked: (%.3f, %.3f)\n", XX, YY);
+			//System.out.printf("Point clicked: (%.3f, %.3f)\n", XX, YY);
 			
-			centerX = XX;
-			centerY = YY;
-			//mouseX0 = e.getX();
-			//mouseY0 = e.getY();
-			mouseX0 = XX;
-			mouseY0 = YY;
+			mouseX0 = e.getX();
+			mouseY0 = e.getY();
 			if(e.getButton()==MouseEvent.BUTTON1) {	// Left button
-				user_rotate = true;
+				bRotate = true;
 			}
-			else if(e.getButton()==MouseEvent.BUTTON3) {	// Right button
-				user_zoom = true;
+			else if(e.getButton()==MouseEvent.BUTTON3 && !e.isShiftDown()) {	// Right button
+				bTranslate = true;
 			}
+			if(e.isShiftDown() && e.getButton()==MouseEvent.BUTTON3){
+				bZoom = true;
+			}
+			
 		}
 
 		@Override
 		public void mouseReleased(MouseEvent e) {
 			// TODO Auto-generated method stub
-			user_rotate = false;
-			user_zoom = false;
+			bRotate = false;
+			bTranslate = false;
+			bZoom = false;
 		}
 
 		@Override
@@ -522,6 +933,8 @@ public class JoglEventListener implements GLEventListener, KeyListener, MouseLis
 			// TODO Auto-generated method stub
 			
 		}
+		
+		
 
 	  /*  
 	public void init(GLDrawable gLDrawable) {
